@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
-from repository import TaskRepository
-from schemas import STask, STaskAdd, STaskId
+from src.tasks.repository import TaskRepository
+from src.tasks.schemas import STask, STaskAdd, STaskId
 
 router = APIRouter(
     prefix="/tasks",
