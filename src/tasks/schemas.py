@@ -1,8 +1,7 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
 class TaskAdd(BaseModel):
-    id: int
     name: str
+    user_id: int
     description: str | None = None
-

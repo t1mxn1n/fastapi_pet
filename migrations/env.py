@@ -6,7 +6,8 @@ from sqlalchemy import pool
 from alembic import context
 
 from src.config import DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
-from src.tasks.models import metadata
+from src.tasks.models import metadata as metadata_tasks
+from src.auth.models import metadata as metadata_auth
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -29,7 +30,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 
 # if several use []
-target_metadata = metadata
+target_metadata = [metadata_tasks, metadata_auth]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
