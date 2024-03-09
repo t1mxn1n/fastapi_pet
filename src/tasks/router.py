@@ -11,6 +11,7 @@ from fastapi_cache.decorator import cache
 from src.database import get_async_session
 from src.tasks.models import task as task_table
 from src.auth.config import current_user
+from src.tasks.tasks import send_email_report
 
 router = APIRouter(
     prefix="/tasks",
@@ -39,3 +40,9 @@ async def get_tasks(session: AsyncSession = Depends(get_async_session), user: Us
     query = select(task_table).where(task_table.c.user_id == user.id)
     tasks = await session.execute(query)
     return tasks.mappings().all()
+
+
+@router.get("/report")
+async def get_report(user: User = Depends(current_user)):
+    send_email_report.delay(user.id)
+    return {"status": 200, "data": "The email has been sent."}
