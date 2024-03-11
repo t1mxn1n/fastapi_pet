@@ -15,3 +15,5 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 465
 SMTP_USER = os.environ.get("SMTP_USER")
+
+TINKOFF_API_KEY = os.environ.get("TINKOFF_API_KEY")
