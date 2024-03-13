@@ -1,12 +1,14 @@
 import asyncio
 import datetime
+import math
 
 from tinkoff.invest import AsyncClient, InstrumentStatus
 from pandas import DataFrame
 from sqlalchemy import insert, delete, select
 from tinkoff.invest.schemas import (
-            GetTechAnalysisRequest, IndicatorType, IndicatorInterval, TypeOfPrice, Deviation, Quotation, Smoothing,
-InstrumentType, GetAssetFundamentalsRequest
+            GetTechAnalysisRequest, IndicatorType,
+            IndicatorInterval, TypeOfPrice, Deviation, Quotation,
+            Smoothing, GetAssetFundamentalsRequest
         )
 
 from src.database import scoped_session
@@ -15,22 +17,47 @@ from src.fonds.models import figi as figi_table
 
 from pprint import pprint as pp
 
-
-async def main():
-    async with AsyncClient(TINKOFF_API_KEY) as client:
-        print(await client.users.get_accounts())
+PSQL_QUERY_ALLOWED_MAX_ARGS = 32767
 
 
 async def figi():
+
+    columns = ['name', 'figi', 'ticker', 'class_code', 'uid', 'sector', 'api_trade_available_flag', 'asset_uid']
+
     async with AsyncClient(TINKOFF_API_KEY) as client:
         shares = await client.instruments.shares(instrument_status=InstrumentStatus.INSTRUMENT_STATUS_ALL)
-        shares_df = DataFrame(shares.instruments, columns=['name', 'figi', 'ticker', 'class_code'])
-        shares_dict = shares_df.to_dict(orient='records')
+
+    shares_df = DataFrame(shares.instruments, columns=columns)
+    shares_dict = shares_df.to_dict(orient='records')
+
+    batched_shares_indexes = await batch(len(columns), len(shares_dict))
+    await insert_figi_to_db(shares_dict, batched_shares_indexes)
+
+
+async def batch(args_per_row, total_records):
+    """
+    PostgreSQL имеет ограничение в 32767 аргументов для единоразовой
+    записи в таблицу. Агрументы находятся по формуле:
+        args = count_fields_in_row * count_rows
+    Данная функция вычисляет границы батчей для записи.
+    """
+    allowed_args_per_query = int(math.floor(PSQL_QUERY_ALLOWED_MAX_ARGS / args_per_row))
+
+    indexes_args_batches = [
+        (x, x + allowed_args_per_query) for x in range(0, total_records, allowed_args_per_query)
+    ]
+    return indexes_args_batches
+
+
+async def insert_figi_to_db(shares_dict, batched_indexes):
     async with scoped_session() as session:
+
         stmt_delete = delete(figi_table)
         await session.execute(stmt_delete)
-        stmt_insert = insert(figi_table).values(shares_dict)
-        await session.execute(stmt_insert)
+
+        for start, end in batched_indexes:
+            stmt_insert = insert(figi_table).values(shares_dict[start:end])
+            await session.execute(stmt_insert)
         await session.commit()
 
 
@@ -50,15 +77,10 @@ async def get_positions():
             # TODO: do some... :)
             ...
         portfolio = await client.operations.get_portfolio(account_id=data_broker[0].id)
-        # data = await client.market_data.get_trading_status(figi="TCSS09805522")
     positions = []
-    # await client.instruments.shares()
     for position in portfolio.positions:
         ticker = await get_ticker_by_figi(position.figi)
-        pp(position)
-        return
-        if not ticker:
-            continue
+
         data = {
             "quantity": position.quantity.units,
             "figi": position.figi,
@@ -133,5 +155,6 @@ async def test():
 
 
 if __name__ == "__main__":
-    asyncio.run(test())
+    asyncio.run(figi())
+    # asyncio.run(test())
     # print(asyncio.run(get_positions()))
