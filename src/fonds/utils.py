@@ -25,9 +25,10 @@ async def figi():
     columns = ['name', 'figi', 'ticker', 'class_code', 'uid', 'sector', 'api_trade_available_flag', 'asset_uid']
 
     async with AsyncClient(TINKOFF_API_KEY) as client:
-        shares = await client.instruments.shares(instrument_status=InstrumentStatus.INSTRUMENT_STATUS_ALL)
+        shares = await client.instruments.shares(instrument_status=InstrumentStatus.INSTRUMENT_STATUS_BASE)
 
     shares_df = DataFrame(shares.instruments, columns=columns)
+    # shares_df = shares_df[shares_df["class_code"].isin(["TQBR", "SPBXM"])]
     shares_dict = shares_df.to_dict(orient='records')
 
     batched_shares_indexes = await batch(len(columns), len(shares_dict))
@@ -124,23 +125,13 @@ async def info_1():
         pp(a)
 
 
-async def info():
+async def fundamentals(asset_uid):
     """
     фундаментальные показатели
     :return:
     """
     async with AsyncClient(TINKOFF_API_KEY) as client:
-        share = await client.instruments.share_by(id_type=1, id='BBG006L8G4H1')
-        pp(share.instrument.uid)
-        q = await client.instruments.find_instrument(query='BBG006L8G4H1')
-        pp(q)
-        # a = await client.instruments.get_assets()
-        # pp(a.assets)
-        a = await client.instruments.get_instrument_by(id_type=1, id='BBG006L8G4H1')
-        a = await client.instruments.get_asset_fundamentals(GetAssetFundamentalsRequest(assets=[a.instrument.asset_uid]))
-        # a = await client.instruments.get_asset_by(id=a.instrument.asset_uid)
-        pp(a)
-        # pp(a)
+        return await client.instruments.get_asset_fundamentals(GetAssetFundamentalsRequest(assets=[asset_uid]))
 
 
 async def test():
@@ -156,5 +147,6 @@ async def test():
 
 if __name__ == "__main__":
     asyncio.run(figi())
+    # asyncio.run(fundamentals())
     # asyncio.run(test())
     # print(asyncio.run(get_positions()))
