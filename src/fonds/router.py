@@ -7,7 +7,7 @@ from src.auth.config import current_user
 from src.auth.models import User
 from src.database import get_async_session
 from src.fonds.models import figi as figi_table, Sectors
-from src.fonds.utils import fundamentals
+from src.fonds.utils import fundamentals, fundamentals_filter
 
 router = APIRouter(
     prefix="/fonds",
@@ -15,18 +15,24 @@ router = APIRouter(
 )
 
 
-@router.get("/get_shares_by_sector")
+@router.get("/get_top_shares_by_sector")
 @cache(expire=30)
-async def get_shares_by_sector(
+async def get_top_shares_by_sector(
         sector: Sectors,
+        # fundamental: Fundamental,
         limit: int = 10,
         offset: int = 0,
         session: AsyncSession = Depends(get_async_session),
         user: User = Depends(current_user)
 ):
+    # todo: need make top by all shares from sector
     query = select(figi_table).where(figi_table.c.sector == sector.name).limit(limit).offset(offset)
     shares = await session.execute(query)
-    return shares.mappings().all()
+    shares_list = list(shares.mappings().all())
+
+    shares_filtered = await fundamentals_filter(shares_list)
+
+    return shares_filtered
 
 
 @router.get("/sectors")
@@ -41,7 +47,7 @@ async def get_all_sectors(session: AsyncSession = Depends(get_async_session), us
 @cache(expire=30)
 async def get_fundamentals_by_asset_uid(asset_uid: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
     response = await fundamentals(asset_uid)
-    return response["fundamentals"]
+    return response.fundamentals
 
 
 @router.get("/get_data_by_ticker")
@@ -49,7 +55,10 @@ async def get_fundamentals_by_asset_uid(asset_uid: str, session: AsyncSession = 
 async def get_data_by_ticker(ticker: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
     query = select(figi_table).where(figi_table.c.ticker == ticker.upper())
     sectors = await session.execute(query)
-    return sectors.mappings().all()
+    data = sectors.mappings().all()
+    if data:
+        return data
+    return {"detail": "Not Found", "info": f"{ticker}", "method": "get_data_by_ticker"}
 
 
 @router.get("/get_data_by_name")
@@ -57,4 +66,7 @@ async def get_data_by_ticker(ticker: str, session: AsyncSession = Depends(get_as
 async def get_data_by_name(name: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
     query = select(figi_table).where(func.lower(figi_table.c.name) == name.lower())
     sectors = await session.execute(query)
-    return sectors.mappings().all()
+    data = sectors.mappings().all()
+    if data:
+        return data
+    return {"detail": "Not Found", "info": f"{name}", "method": "get_data_by_name"}

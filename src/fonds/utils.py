@@ -4,7 +4,7 @@ import math
 
 from tinkoff.invest import AsyncClient, InstrumentStatus
 from pandas import DataFrame
-from sqlalchemy import insert, delete, select
+from sqlalchemy import insert, delete, select, RowMapping, Sequence
 from tinkoff.invest.schemas import (
             GetTechAnalysisRequest, IndicatorType,
             IndicatorInterval, TypeOfPrice, Deviation, Quotation,
@@ -71,6 +71,10 @@ async def get_ticker_by_figi(figi_value: str):
 
 
 async def get_positions():
+    """
+    Получить активные позиции по API_KEY
+    :return:
+    """
     async with AsyncClient(TINKOFF_API_KEY) as client:
         data = await client.users.get_accounts()
         data_broker = list(filter(lambda x: x.name == "Брокерский счёт", data.accounts))
@@ -90,14 +94,15 @@ async def get_positions():
             "name": ticker[0]["name"],
             "market_class_code": ticker[0]["class_code"],
             "profit_rub": float(f"{position.expected_yield.units}.{position.expected_yield.nano}"),
-            "uid": position.instrument_uid
+            "uid": position.instrument_uid,
+            # TODO: asset_uid needed in future
         }
         data["total_price"] = data["current_stock_price"] * data["quantity"]
         positions.append(data)
     return positions
 
 
-async def info_1():
+async def technical():
     """
     Технические индикаторы
 
@@ -132,6 +137,22 @@ async def fundamentals(asset_uid):
     """
     async with AsyncClient(TINKOFF_API_KEY) as client:
         return await client.instruments.get_asset_fundamentals(GetAssetFundamentalsRequest(assets=[asset_uid]))
+
+
+async def fundamentals_filter(shares_list: list[RowMapping]):
+    for ind, share in enumerate(shares_list):
+        data = dict(share)
+        fundamentals_share = await fundamentals(share["asset_uid"])
+        fundamentals_share_list = fundamentals_share.fundamentals
+        if not fundamentals_share_list:
+            data |= {"error": "no data"}
+            continue
+        data["fundamentals"] = fundamentals_share_list[0].__dict__
+        shares_list[ind] = data
+
+    # todo: sorting/filtering by fund fields
+
+    return shares_list
 
 
 async def test():

@@ -36,3 +36,7 @@ class Sectors(Enum):
     green_buildings = 'green_buildings'
 
 
+class Fundamental(Enum):
+    ...
+
+
