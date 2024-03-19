@@ -1,8 +1,9 @@
 from enum import Enum
-from sqlalchemy import MetaData, Table, Column, String, Boolean
+from sqlalchemy import MetaData, Table, Column, String, Boolean, Float
 
 
 metadata = MetaData()
+
 
 figi = Table(
     "figi",
@@ -15,6 +16,19 @@ figi = Table(
     Column("asset_uid", String),
     Column("sector", String),
     Column("api_trade_available_flag", Boolean)
+)
+
+
+fundamental = Table(
+    "fundamental",
+    metadata,
+    Column("asset_uid", String, primary_key=True),
+    Column("pe_ratio_ttm", Float),
+    Column("price_to_sales_ttm", Float),
+    Column("price_to_book_ttm", Float),
+    Column("ev_to_ebitda_mrq", Float),
+    Column("roe", Float),
+    Column("total_debt_to_equity_mrq", Float),
 )
 
 
@@ -37,6 +51,9 @@ class Sectors(Enum):
 
 
 class Fundamental(Enum):
-    ...
-
-
+    pe_ratio_ttm = "p/e"
+    price_to_sales_ttm = "p/s"
+    price_to_book_ttm = "p/b"
+    ev_to_ebitda_mrq = "ev/ebitda"
+    roe = "roe"
+    total_debt_to_equity_mrq = "debt/equity"

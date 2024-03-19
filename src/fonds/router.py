@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.config import current_user
 from src.auth.models import User
 from src.database import get_async_session
-from src.fonds.models import figi as figi_table, Sectors
+from src.fonds.models import figi as figi_table, Sectors, Fundamental
 from src.fonds.utils import fundamentals, fundamentals_filter
 
 router = APIRouter(
@@ -19,14 +19,16 @@ router = APIRouter(
 @cache(expire=30)
 async def get_top_shares_by_sector(
         sector: Sectors,
-        # fundamental: Fundamental,
+        fundamental: Fundamental,
         limit: int = 10,
         offset: int = 0,
         session: AsyncSession = Depends(get_async_session),
         user: User = Depends(current_user)
 ):
-    # todo: need make top by all shares from sector
-    query = select(figi_table).where(figi_table.c.sector == sector.name).limit(limit).offset(offset)
+    # print(fundamental.name)
+    # print(fundamental.value)
+    # todo: need join by asset_uid figi table with fundamentals -> order by field -> limit offset
+    query = select(figi_table).where(figi_table.c.sector == sector.name)
     shares = await session.execute(query)
     shares_list = list(shares.mappings().all())
 
@@ -46,8 +48,8 @@ async def get_all_sectors(session: AsyncSession = Depends(get_async_session), us
 @router.get("/get_fundamentals_by_asset_uid")
 @cache(expire=30)
 async def get_fundamentals_by_asset_uid(asset_uid: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
-    response = await fundamentals(asset_uid)
-    return response.fundamentals
+    response = await fundamentals([asset_uid])
+    return response
 
 
 @router.get("/get_data_by_ticker")
