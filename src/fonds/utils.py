@@ -1,20 +1,21 @@
 import asyncio
 import datetime
 import math
-import time
 
 from grpc import StatusCode
+from numpy import nan
 from tinkoff.invest import AsyncClient, InstrumentStatus
 from pandas import DataFrame
+from datetime import datetime, timezone
 from tqdm import tqdm
 from loguru import logger
 from sqlalchemy import insert, delete, select, RowMapping
 from sqlalchemy.dialects.postgresql import insert
 from tinkoff.invest.schemas import (
-            GetTechAnalysisRequest, IndicatorType,
-            IndicatorInterval, TypeOfPrice, Deviation, Quotation,
-            Smoothing, GetAssetFundamentalsRequest
-        )
+    GetTechAnalysisRequest, IndicatorType,
+    IndicatorInterval, TypeOfPrice, Deviation, Quotation,
+    Smoothing, GetAssetFundamentalsRequest
+)
 from tinkoff.invest.exceptions import AioRequestError
 
 from src.database import scoped_session, get_async_session
@@ -28,14 +29,22 @@ PSQL_QUERY_ALLOWED_MAX_ARGS = 32767
 
 
 async def figi_updater(update=True):
-
-    columns = ['name', 'figi', 'ticker', 'class_code', 'uid', 'sector', 'api_trade_available_flag', 'asset_uid']
-
+    columns = ['name', 'figi', 'ticker', 'class_code',
+               'uid', 'sector', 'api_trade_available_flag',
+               'asset_uid', 'exchange', 'buy_available_flag',
+               'sell_available_flag']
     async with AsyncClient(TINKOFF_API_KEY) as client:
         shares = await client.instruments.shares(instrument_status=InstrumentStatus.INSTRUMENT_STATUS_BASE)
 
     shares_df = DataFrame(shares.instruments, columns=columns)
-    shares_dict = shares_df.to_dict(orient='records')
+
+    shares_available = shares_df[(shares_df['buy_available_flag'] == True) &
+                                 (shares_df['sell_available_flag'] == True) &
+                                 (~shares_df['exchange'].str.contains('close'))]
+
+    shares_available = shares_available.drop(['exchange', 'buy_available_flag', 'sell_available_flag'], axis=1)
+
+    shares_dict = shares_available.to_dict(orient='records')
 
     batched_shares_indexes = await batch(len(columns), len(shares_dict))
     await insert_figi_to_db(shares_dict, batched_shares_indexes)
@@ -58,7 +67,6 @@ async def batch(args_per_row, total_records):
 
 async def insert_figi_to_db(shares_dict, batched_indexes):
     async with scoped_session() as session:
-
         stmt_delete = delete(figi_table)
         await session.execute(stmt_delete)
 
@@ -69,7 +77,6 @@ async def insert_figi_to_db(shares_dict, batched_indexes):
 
 
 async def fundamentals_updater():
-
     async with scoped_session() as session:
         query = select(figi_table.c.asset_uid)
         result = await session.execute(query)
@@ -87,10 +94,13 @@ async def fundamentals_updater():
                 "price_to_book_ttm": fundamentals_data[0].price_to_book_ttm,
                 "ev_to_ebitda_mrq": fundamentals_data[0].ev_to_ebitda_mrq,
                 "roe": fundamentals_data[0].roe,
-                "total_debt_to_equity_mrq": fundamentals_data[0].total_debt_to_equity_mrq
+                "total_debt_to_equity_mrq": fundamentals_data[0].total_debt_to_equity_mrq,
+                "update_time": datetime.now().astimezone(timezone.utc)
             }
 
             await upsert_implementation(session, data)
+
+    # todo: delete old data bu update_time, f.e. with delta=day
 
 
 async def upsert_implementation(session, data):
@@ -232,8 +242,19 @@ async def test():
     return sectors
 
 
+async def test2():
+    async with AsyncClient(TINKOFF_API_KEY) as client:
+        s = await client.instruments.share_by(id_type=3, id='aab18c37-e7d1-43e0-a17e-7ba89ae01ecd')
+        pp(s.instrument)
+        s = await client.instruments.share_by(id_type=3, id='b71bd174-c72c-41b0-a66f-5f9073e0d1f5')
+        pp(s.instrument)
+        s = await client.instruments.share_by(id_type=3, id='9a88a875-7dde-431a-ad1d-dc8ba3cf8a39')
+        pp(s.instrument)
+
+
 if __name__ == "__main__":
+    # asyncio.run(figi_updater())
     asyncio.run(fundamentals_updater())
     # asyncio.run(fundamentals())
-    # asyncio.run(test())
+    # asyncio.run(test2())
     # print(asyncio.run(get_positions()))

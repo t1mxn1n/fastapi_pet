@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends
 from fastapi_cache.decorator import cache
-from sqlalchemy import select, func
+from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.config import current_user
 from src.auth.models import User
 from src.database import get_async_session
 from src.fonds.models import figi as figi_table, Sectors, Fundamental
+from src.fonds.models import fundamental as fundamental_table
 from src.fonds.utils import fundamentals, fundamentals_filter
 
 router = APIRouter(
@@ -27,14 +28,15 @@ async def get_top_shares_by_sector(
 ):
     # print(fundamental.name)
     # print(fundamental.value)
-    # todo: need join by asset_uid figi table with fundamentals -> order by field -> limit offset
-    query = select(figi_table).where(figi_table.c.sector == sector.name)
+    # todo: add choice fundamental
+    query = (select(figi_table, fundamental_table).select_from(figi_table).
+             join(fundamental_table, figi_table.c.asset_uid == fundamental_table.c.asset_uid).
+             where((figi_table.c.sector == sector.name) & (fundamental_table.c.pe_ratio_ttm > 0)).
+             order_by(fundamental_table.c.pe_ratio_ttm))
     shares = await session.execute(query)
     shares_list = list(shares.mappings().all())
 
-    shares_filtered = await fundamentals_filter(shares_list)
-
-    return shares_filtered
+    return shares_list
 
 
 @router.get("/sectors")

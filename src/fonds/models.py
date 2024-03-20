@@ -1,5 +1,5 @@
 from enum import Enum
-from sqlalchemy import MetaData, Table, Column, String, Boolean, Float
+from sqlalchemy import MetaData, Table, Column, String, Boolean, Float, DateTime
 
 
 metadata = MetaData()
@@ -29,6 +29,7 @@ fundamental = Table(
     Column("ev_to_ebitda_mrq", Float),
     Column("roe", Float),
     Column("total_debt_to_equity_mrq", Float),
+    Column("update_time", DateTime(timezone=True))
 )
 
 
