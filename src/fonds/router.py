@@ -26,17 +26,37 @@ async def get_top_shares_by_sector(
         session: AsyncSession = Depends(get_async_session),
         user: User = Depends(current_user)
 ):
-    # print(fundamental.name)
-    # print(fundamental.value)
-    # todo: add choice fundamental
-    query = (select(figi_table, fundamental_table).select_from(figi_table).
-             join(fundamental_table, figi_table.c.asset_uid == fundamental_table.c.asset_uid).
-             where((figi_table.c.sector == sector.name) & (fundamental_table.c.pe_ratio_ttm > 0)).
-             order_by(fundamental_table.c.pe_ratio_ttm))
-    shares = await session.execute(query)
-    shares_list = list(shares.mappings().all())
+    # todo: add indexes for queries
+    match fundamental.name:
 
-    return shares_list
+        case "pe_ratio_ttm" | "ev_to_ebitda_mrq" | "total_debt_to_equity_mrq":
+            query = (select(figi_table, fundamental_table).select_from(figi_table).
+                     join(fundamental_table, figi_table.c.asset_uid == fundamental_table.c.asset_uid).
+                     where((figi_table.c.sector == sector.name) &
+                           (fundamental_table.c[fundamental.name] > 0)).
+                     order_by(fundamental_table.c[fundamental.name])).limit(limit).offset(offset)
+
+        case "price_to_sales_ttm" | "price_to_book_ttm":
+            query = (select(figi_table, fundamental_table).select_from(figi_table).
+                     join(fundamental_table, figi_table.c.asset_uid == fundamental_table.c.asset_uid).
+                     where((figi_table.c.sector == sector.name) &
+                           (fundamental_table.c[fundamental.name] < 1) &
+                           (fundamental_table.c[fundamental.name] > 0)).
+                     order_by(fundamental_table.c[fundamental.name])).limit(limit).offset(offset)
+
+        case "roe":
+            query = (select(figi_table, fundamental_table).select_from(figi_table).
+                     join(fundamental_table, figi_table.c.asset_uid == fundamental_table.c.asset_uid).
+                     where((figi_table.c.sector == sector.name) &
+                           (fundamental_table.c[fundamental.name] > 0)).
+                     order_by(desc(fundamental_table.c[fundamental.name]))).limit(limit).offset(offset)
+
+        case _:
+            return {"error": "not found case", "detail": fundamental.name}
+
+    shares = await session.execute(query)
+
+    return shares.mappings().all()
 
 
 @router.get("/sectors")
@@ -49,14 +69,16 @@ async def get_all_sectors(session: AsyncSession = Depends(get_async_session), us
 
 @router.get("/get_fundamentals_by_asset_uid")
 @cache(expire=30)
-async def get_fundamentals_by_asset_uid(asset_uid: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
+async def get_fundamentals_by_asset_uid(asset_uid: str, session: AsyncSession = Depends(get_async_session),
+                                        user: User = Depends(current_user)):
     response = await fundamentals([asset_uid])
     return response
 
 
 @router.get("/get_data_by_ticker")
 @cache(expire=30)
-async def get_data_by_ticker(ticker: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
+async def get_data_by_ticker(ticker: str, session: AsyncSession = Depends(get_async_session),
+                             user: User = Depends(current_user)):
     query = select(figi_table).where(figi_table.c.ticker == ticker.upper())
     sectors = await session.execute(query)
     data = sectors.mappings().all()
@@ -67,7 +89,8 @@ async def get_data_by_ticker(ticker: str, session: AsyncSession = Depends(get_as
 
 @router.get("/get_data_by_name")
 @cache(expire=30)
-async def get_data_by_name(name: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
+async def get_data_by_name(name: str, session: AsyncSession = Depends(get_async_session),
+                           user: User = Depends(current_user)):
     query = select(figi_table).where(func.lower(figi_table.c.name) == name.lower())
     sectors = await session.execute(query)
     data = sectors.mappings().all()
