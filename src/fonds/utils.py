@@ -28,7 +28,7 @@ from pprint import pprint as pp
 PSQL_QUERY_ALLOWED_MAX_ARGS = 32767
 
 
-async def figi_updater(update=True):
+async def figi_updater():
     columns = ['name', 'figi', 'ticker', 'class_code',
                'uid', 'sector', 'api_trade_available_flag',
                'asset_uid', 'exchange', 'buy_available_flag',
@@ -38,13 +38,13 @@ async def figi_updater(update=True):
 
     shares_df = DataFrame(shares.instruments, columns=columns)
 
-    shares_available = shares_df[(shares_df['buy_available_flag'] == True) &
-                                 (shares_df['sell_available_flag'] == True) &
-                                 (~shares_df['exchange'].str.contains('close'))]
+    # shares_available = shares_df[(shares_df['buy_available_flag'] == True) &
+    #                              (shares_df['sell_available_flag'] == True) &
+    #                              (~shares_df['exchange'].str.contains('close'))]
+    #
+    # shares_available = shares_available.drop(['exchange', 'buy_available_flag', 'sell_available_flag'], axis=1)
 
-    shares_available = shares_available.drop(['exchange', 'buy_available_flag', 'sell_available_flag'], axis=1)
-
-    shares_dict = shares_available.to_dict(orient='records')
+    shares_dict = shares_df.to_dict(orient='records')
 
     batched_shares_indexes = await batch(len(columns), len(shares_dict))
     await insert_figi_to_db(shares_dict, batched_shares_indexes)
@@ -121,7 +121,7 @@ async def get_ticker_by_figi(figi_value: str):
     return ticker
 
 
-async def get_positions():
+async def get_positions(api_key=None):
     """
     Получить активные позиции по API_KEY
     :return:
@@ -136,7 +136,8 @@ async def get_positions():
     positions = []
     for position in portfolio.positions:
         ticker = await get_ticker_by_figi(position.figi)
-
+        if not ticker:
+            continue
         data = {
             "quantity": position.quantity.units,
             "figi": position.figi,
@@ -254,7 +255,7 @@ async def test2():
 
 if __name__ == "__main__":
     # asyncio.run(figi_updater())
-    asyncio.run(fundamentals_updater())
+    # asyncio.run(fundamentals_updater())
     # asyncio.run(fundamentals())
     # asyncio.run(test2())
-    # print(asyncio.run(get_positions()))
+    print(asyncio.run(get_positions()))

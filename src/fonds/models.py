@@ -15,7 +15,10 @@ figi = Table(
     Column("uid", String),
     Column("asset_uid", String),
     Column("sector", String),
-    Column("api_trade_available_flag", Boolean)
+    Column("api_trade_available_flag", Boolean),
+    Column("exchange", String),
+    Column("buy_available_flag", Boolean),
+    Column("sell_available_flag", Boolean)
 )
 
 

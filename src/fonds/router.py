@@ -8,7 +8,7 @@ from src.auth.models import User
 from src.database import get_async_session
 from src.fonds.models import figi as figi_table, Sectors, Fundamental
 from src.fonds.models import fundamental as fundamental_table
-from src.fonds.utils import fundamentals, fundamentals_filter
+from src.fonds.utils import fundamentals, get_positions
 
 router = APIRouter(
     prefix="/fonds",
@@ -27,6 +27,7 @@ async def get_top_shares_by_sector(
         user: User = Depends(current_user)
 ):
     # todo: add indexes for queries
+    # todo: add more filters, buy,sell available and contains 'close'
     match fundamental.name:
 
         case "pe_ratio_ttm" | "ev_to_ebitda_mrq" | "total_debt_to_equity_mrq":
@@ -57,6 +58,15 @@ async def get_top_shares_by_sector(
     shares = await session.execute(query)
 
     return shares.mappings().all()
+
+
+@router.get("/profile_info")
+@cache(expire=30)
+async def profile_info(api_token: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
+
+    data = await get_positions(api_token)
+
+    return data
 
 
 @router.get("/sectors")
