@@ -147,11 +147,18 @@ async def get_positions(api_key=None):
             "market_class_code": ticker[0]["class_code"],
             "profit_rub": float(f"{position.expected_yield.units}.{position.expected_yield.nano}"),
             "uid": position.instrument_uid,
-            # TODO: asset_uid needed in future
+            "asset_uid": ticker[0]["asset_uid"]
         }
         data["total_price"] = data["current_stock_price"] * data["quantity"]
         positions.append(data)
-    return positions
+
+    data = {
+        "details": {
+            "full_active_cost": sum(pos["total_price"] for pos in positions)
+        },
+        "positions": positions
+    }
+    return data
 
 
 async def technical():
@@ -255,7 +262,7 @@ async def test2():
 
 if __name__ == "__main__":
     # asyncio.run(figi_updater())
-    # asyncio.run(fundamentals_updater())
+    asyncio.run(fundamentals_updater())
     # asyncio.run(fundamentals())
     # asyncio.run(test2())
-    print(asyncio.run(get_positions()))
+    # print(asyncio.run(get_positions()))

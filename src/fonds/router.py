@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from fastapi_cache.decorator import cache
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, not_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.config import current_user
@@ -27,20 +27,25 @@ async def get_top_shares_by_sector(
         user: User = Depends(current_user)
 ):
     # todo: add indexes for queries
-    # todo: add more filters, buy,sell available and contains 'close'
     match fundamental.name:
 
         case "pe_ratio_ttm" | "ev_to_ebitda_mrq" | "total_debt_to_equity_mrq":
             query = (select(figi_table, fundamental_table).select_from(figi_table).
                      join(fundamental_table, figi_table.c.asset_uid == fundamental_table.c.asset_uid).
-                     where((figi_table.c.sector == sector.name) &
+                     where((figi_table.c.buy_available_flag == True) &
+                           (figi_table.c.sell_available_flag == True) &
+                           (not_(figi_table.c.exchange.contains("close"))) &
+                           (figi_table.c.sector == sector.name) &
                            (fundamental_table.c[fundamental.name] > 0)).
                      order_by(fundamental_table.c[fundamental.name])).limit(limit).offset(offset)
 
         case "price_to_sales_ttm" | "price_to_book_ttm":
             query = (select(figi_table, fundamental_table).select_from(figi_table).
                      join(fundamental_table, figi_table.c.asset_uid == fundamental_table.c.asset_uid).
-                     where((figi_table.c.sector == sector.name) &
+                     where((figi_table.c.buy_available_flag == True) &
+                           (figi_table.c.sell_available_flag == True) &
+                           (not_(figi_table.c.exchange.contains("close"))) &
+                           (figi_table.c.sector == sector.name) &
                            (fundamental_table.c[fundamental.name] < 1) &
                            (fundamental_table.c[fundamental.name] > 0)).
                      order_by(fundamental_table.c[fundamental.name])).limit(limit).offset(offset)
@@ -48,7 +53,10 @@ async def get_top_shares_by_sector(
         case "roe":
             query = (select(figi_table, fundamental_table).select_from(figi_table).
                      join(fundamental_table, figi_table.c.asset_uid == fundamental_table.c.asset_uid).
-                     where((figi_table.c.sector == sector.name) &
+                     where((figi_table.c.buy_available_flag == True) &
+                           (figi_table.c.sell_available_flag == True) &
+                           (not_(figi_table.c.exchange.contains("close"))) &
+                           (figi_table.c.sector == sector.name) &
                            (fundamental_table.c[fundamental.name] > 0)).
                      order_by(desc(fundamental_table.c[fundamental.name]))).limit(limit).offset(offset)
 
@@ -62,8 +70,8 @@ async def get_top_shares_by_sector(
 
 @router.get("/profile_info")
 @cache(expire=30)
-async def profile_info(api_token: str, session: AsyncSession = Depends(get_async_session), user: User = Depends(current_user)):
-
+async def profile_info(api_token: str, session: AsyncSession = Depends(get_async_session),
+                       user: User = Depends(current_user)):
     data = await get_positions(api_token)
 
     return data
