@@ -1,5 +1,6 @@
 import smtplib
 import asyncio
+import time
 from email.message import EmailMessage
 from celery import Celery
 from sqlalchemy import select
@@ -9,7 +10,7 @@ from src.tasks.models import task as task_table
 from src.auth.models import user as user_table
 from src.database import scoped_session
 
-celery = Celery('tasks', broker='redis://localhost:6379')
+celery = Celery('tasks', broker='redis://localhost:6379', backend='redis://localhost:6379')
 loop = asyncio.get_event_loop()
 
 
@@ -47,6 +48,14 @@ async def get_tasks(user_id: int):
 def send_email_report(user_id: int):
     loop.run_until_complete(get_tasks(user_id))
 
+
+@celery.task()
+def test_celery_my(example):
+    # print(self.__dir__())
+    time.sleep(10)
+    for _ in range(5):
+        print(123)
+    return example
 
 
 
